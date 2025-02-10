@@ -6,8 +6,6 @@ node_modules/
 .build/
 extensions/**/dist/
 /out*/
-.github/
-resources
 /extensions/**/out/
 build/node_modules
 coverage/
