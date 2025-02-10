@@ -4,8 +4,6 @@ npm-debug.log
 Thumbs.db
 node_modules/
 .build/
-extensions/
-test/
 extensions/**/dist/
 /out*/
 .github/
