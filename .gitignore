@@ -5,7 +5,6 @@ Thumbs.db
 node_modules/
 .build/
 extensions/
-build/
 test/
 extensions/**/dist/
 /out*/
