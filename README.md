@@ -1,6 +1,6 @@
 # 环境
 1. node 18.20.6
-2. yarn 安装
+2. yarn install 安装
 # 本地运行
 1. 在scripts目录下，运行code.sh
 # 打包
