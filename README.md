@@ -4,4 +4,4 @@
 # 本地运行
 1. 在scripts目录下，运行code.sh
 # 打包
-1. 构建linux ： yarn gulp vscode-linux-arm64
+1. 构建linux ： yarn gulp vscode-linux-arm64-build-deb
