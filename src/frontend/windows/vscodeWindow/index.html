@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<style>
+		/* 添加全局滚动条控制 */
+		html,
+		body {
+			overflow: hidden;
+			/* 禁止全局滚动条 */
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+
+		/* 容器高度计算调整 */
+		.update-container {
+			display: flex;
+			width: 100%;
+			height: 100vh;
+			/* 使用视口高度 */
+			flex-direction: column;
+			box-sizing: border-box;
+			/* 包含padding计算 */
+			padding-bottom: 20px;
+			/* 底部留白 */
+		}
+
+
+		.header-section {
+			display: flex;
+			align-items: center;
+			margin: 16px 16px 0;
+		}
+
+		.update-image {
+			width: 72px;
+			height: 72px;
+		}
+
+		.title-section {
+			margin-left: 12px;
+			flex: 1;
+		}
+
+		.title-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		.version-title {
+			font-size: 16px;
+			color: #1b1f45;
+			font-weight: 600;
+			line-height: 24px;
+		}
+
+		/* 关闭按钮 */
+		.close-button {
+			width: 16px;
+			height: 16px;
+			cursor: pointer;
+		}
+
+
+		.blur-box {
+			background: #ffffff;
+			backdrop-filter: blur(10px);
+			width: 420px;
+			border-radius: 4px;
+			box-shadow: 0px 2px 12px 0px rgba(0, 0, 0, 0.05);
+		}
+
+		/* 操作按钮区域 */
+		.action-buttons {
+			display: flex;
+			justify-content: space-between;
+			margin: 20px 16px;
+		}
+		.container {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            max-width: 500px;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #pathDisplay {
+            margin: 10px 0;
+            color: #666;
+            word-break: break-all;
+        }
+
+	</style>
+</head>
+
+<body>
+	<!-- 普通更新弹窗 -->
+	<div id="updateContainer" class="update-container" style="display: block;">
+		<div class="header-section">
+			<img src="../../assets/updateImg.webp" class="update-image">
+			<div class="title-section">
+				<div class="title-row">
+					<div class="version-title">代码编辑器页面</div>
+					<img src="../../assets/forget-close-window.webp" class="close-button" onclick="closeDialog()">
+				</div>
+				<div class="update-content" id="updateMessage"></div>
+			</div>
+		</div>
+
+
+		<!-- 操作按钮 -->
+		<div class="action-buttons">
+			<div class="container">
+				<button  id="selectFolderBtn">
+					选择文件夹
+				</button>
+				<button  id="selectFileBtn">
+					选择文件
+				</button>
+				<div id="pathDisplay">尚未选择文件夹</div>
+
+				<button id="startBtn" >
+					启动
+				</button>
+				<button id="isShow">
+					显示/隐藏
+				</button>
+				<button id="closeWindow">
+					关闭编辑器
+				</button>
+				<!-- <label class="switch">
+					<input type="checkbox" id="toggle">
+					<span class="slider round"></span>
+				</label> -->
+			</div>
+			<!-- <label>
+				<input type="file" webkitdirectory>	选择项目目录
+			</label>
+			<div>
+				<button onclick="closeDialog()">暂不更新</button>
+				<button onclick="updateNow()" style="background:#3765fc;color:#fff;">重启更新</button>
+			</div> -->
+		</div>
+	</div>
+
+	<script>
+
+		function updateNow() {
+			window.electronAPI?.sendMessage("open-vscode", {type:"file",path:'D:/workspace/electronapp/src/main.js'});
+		}
+        // 存储选中路径的变量
+        let selectedFolderPath = '';
+		let isShow=false;
+		let type='';
+// 		window.electronAPI?.onMessage('getFeedbackPopover', (e, data)=> {
+//   feedbackPopover.value = data
+// })
+		// 安全访问方式
+window.electronAPI?.onMessage('selected-directory',(event, path) => {
+  console.log('Received path:', path)
+  			if (path) {
+                selectedFolderPath = path;
+				type="folder"
+                document.getElementById('pathDisplay').textContent =
+                    `已选择文件夹：${selectedFolderPath}`;
+            }
+})
+window.electronAPI?.onMessage('selected-File',(event, path) => {
+  console.log('Received File path:', path)
+  			if (path) {
+				type="file"
+                selectedFolderPath = path;
+                document.getElementById('pathDisplay').textContent =
+                    `已选择文件：${selectedFolderPath}`;
+            }
+})
+
+     // 选择文件夹按钮点击事件 opem-openFile-dialog
+	 document.getElementById('selectFolderBtn').addEventListener('click', () => {
+		window.electronAPI?.sendMessage('open-directory-dialog',{})
+        });
+		document.getElementById('selectFileBtn').addEventListener('click', () => {
+		window.electronAPI?.sendMessage('opem-openFile-dialog',{})
+        });
+       // 启动按钮点击事件
+	   document.getElementById('startBtn').addEventListener('click', () => {
+            if (selectedFolderPath) {
+                // alert(`完整路径：\n${selectedFolderPath}`);
+				console.log(`完整路径：\n${selectedFolderPath}`)
+ 				window.electronAPI?.sendMessage("open-vscode", {type:type,path:selectedFolderPath});
+				isShow=true;
+            } else {
+                alert('请先选择文件夹！');
+            }
+        });
+       // 启动按钮点击事件
+	   document.getElementById('isShow').addEventListener('click', () => {
+		console.log("isShow-init=")
+		if(isShow){
+			isShow=false;
+		}else{
+			isShow=true;
+		}
+		console.log("isShow-vscode="+isShow)
+
+			window.electronAPI?.sendMessage("isShow-vscode",isShow);
+        });
+		document.getElementById('closeWindow').addEventListener('click', () => {
+			console.log("关闭编辑器")
+			window.electronAPI?.sendMessage("close-window",{});
+        });
+
+        // document.getElementById('folderInput').addEventListener('change', function(e) {
+        //     const files = e.target.files;
+        //      if (files.length > 0) {
+        //         // 通过第一个文件的路径提取文件夹名称
+        //         const fullPath = files[0].webkitRelativePath;
+        //         selectedFolderPath = fullPath.split('/')[0];
+
+        //         // 更新显示
+        //         document.getElementById('pathDisplay').textContent =
+        //             `已选择文件夹：${selectedFolderPath}`;
+        //     }
+        // });
+	</script>
+</body>
+
+</html>

@@ -101,11 +101,16 @@ import { IWorkspacesManagementMainService, WorkspacesManagementMainService } fro
 import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
+import { createDesktopWindow } from '../../../frontend/modules/mainWindowsUtiles.js'
+import { StartData } from '../../../frontend/common/StartUpData.js'
 
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
  */
+let appInstantiationService: IInstantiationService;
+let mainProcessElectronServer: ElectronIPCServer;
+// let initialProtocolUrls: IInitialProtocolUrls | undefined;
 export class CodeApplication extends Disposable {
 
 	private windowsMainService: IWindowsMainService | undefined;
@@ -471,65 +476,55 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error.stack);
 		}
 	}
+	async startup(iscode: boolean, data?: StartData): Promise<void> {
+		if (!iscode) {
+			this.logService.debug('Starting VS Code');
+			this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
+			this.logService.debug('args:', this.environmentMainService.args);
 
-	async startup(): Promise<void> {
-		this.logService.debug('Starting VS Code');
-		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
-		this.logService.debug('args:', this.environmentMainService.args);
-
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		const win32AppUserModelId = this.productService.win32AppUserModelId;
-		if (isWindows && win32AppUserModelId) {
-			app.setAppUserModelId(win32AppUserModelId);
-		}
-
-		// Fix native tabs on macOS 10.13
-		// macOS enables a compatibility patch for any bundle ID beginning with
-		// "com.microsoft.", which breaks native tabs for VS Code when using this
-		// identifier (from the official build).
-		// Explicitly opt out of the patch here before creating any windows.
-		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
-		try {
-			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+			const win32AppUserModelId = this.productService.win32AppUserModelId;
+			if (isWindows && win32AppUserModelId) {
+				app.setAppUserModelId(win32AppUserModelId);
 			}
-		} catch (error) {
-			this.logService.error(error);
-		}
 
-		// Main process server (electron IPC based)
-		const mainProcessElectronServer = new ElectronIPCServer();
-		this.lifecycleMainService.onWillShutdown(e => {
-			if (e.reason === ShutdownReason.KILL) {
-				// When we go down abnormally, make sure to free up
-				// any IPC we accept from other windows to reduce
-				// the chance of doing work after we go down. Kill
-				// is special in that it does not orderly shutdown
-				// windows.
-				mainProcessElectronServer.dispose();
+			try {
+				if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+					systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				}
+			} catch (error) {
+				this.logService.error(error);
 			}
-		});
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
+			// Main process server (electron IPC based)
+			mainProcessElectronServer = new ElectronIPCServer();
+			this.lifecycleMainService.onWillShutdown(e => {
+				if (e.reason === ShutdownReason.KILL) {
+
+					mainProcessElectronServer.dispose();
+				}
+			});
+
+			// Resolve unique machine ID
+			this.logService.trace('Resolving machine identifier...');
+
+
+			createDesktopWindow(this);
+			return;
+		}
 		const machineId = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
 		const { sharedProcess, sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
+		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Services
-		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
+		appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
 		// Setup Auth Handler
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
-
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
 

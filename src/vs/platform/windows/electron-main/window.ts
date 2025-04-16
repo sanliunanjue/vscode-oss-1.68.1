@@ -40,7 +40,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-
+import { getDesktopWindow, setVscodepWindow } from '../../../../frontend/modules/mainWindowsUtiles.js'
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string[];
@@ -320,6 +320,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 				mark('code/didMaximizeCodeWindow');
 			}
+			this._win?.setParentWindow(getDesktopWindow());
+			if (this._win) {
+				setVscodepWindow(this._win);
+			}
+			const primaryDisplay = screen.getPrimaryDisplay();
+			const { workArea } = primaryDisplay;
+			this._win?.setBounds({
+				width: workArea.width * 0.78,          // 占据80%宽度
+				height: workArea.height * 0.85,        // 占据80%高度
+				x: workArea.x + workArea.width * 0.21,  // 左侧留出20%空间
+				y: workArea.y + workArea.height * 0.13, // 顶部留出20%空间
+			});
+			this._win?.setMovable(false);
+			this.win?.setMinimizable(false);
+			this.win?.setClosable(false);
+			this.win?.setMaximizable(false);
+
+			// 监听父窗口尺寸变化
+			getDesktopWindow()?.on('resize', () => this.updateChildWindowBounds());
+			getDesktopWindow()?.on('move', () => this.updateChildWindowBounds());
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -333,6 +353,53 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
+	}
+	public updateChildWindowBounds(): void {
+
+
+		// 获取父窗口的绝对位置和尺寸
+		const parentBounds = getDesktopWindow()?.getBounds();
+
+		if (!parentBounds) {
+			this.logService.warn('updateChildWindowBounds: Parent window bounds are undefined.');
+			return;
+		}
+		// 计算子窗口位置和尺寸
+		const marginRatio = 0.21
+		const marginRatio2 = 0.15
+
+		// 确保 parentBounds 存在后再访问其属性
+		const childX = parentBounds && parentBounds.x + parentBounds.width * marginRatio || 0;
+		const childY = parentBounds && parentBounds.y + parentBounds.height * marginRatio2 || 0;
+		const childWidth = parentBounds && parentBounds.width * (1 - marginRatio) || 0;
+		const childHeight = parentBounds && parentBounds.height * (1 - marginRatio2) || 0;
+		// // const childX = parentBounds.x + parentBounds.width * marginRatio;
+		// const childY = parentBounds.y + parentBounds.height * marginRatio
+		// const childWidth = parentBounds.width * (1 - marginRatio)
+		// const childHeight = parentBounds.height * (1 - marginRatio)
+
+		// 边界安全检测（防止超出屏幕）
+		const display = screen.getDisplayMatching(parentBounds!!);
+
+		const maxX = display.bounds.x + display.bounds.width;
+		const maxY = display.bounds.y + display.bounds.height;
+
+		// 最终计算结果
+		const finalBounds = {
+			x: Math.max(display.bounds.x, Math.min(childX, maxX - childWidth)),
+			y: Math.max(display.bounds.y, Math.min(childY, maxY - childHeight)),
+			width: Math.min(childWidth, maxX - childX),
+			height: Math.min(childHeight, maxY - childY)
+		};
+
+		// 应用布局
+		this.win?.setBounds({
+			x: Math.floor(finalBounds.x),
+			y: Math.floor(finalBounds.y),
+			width: Math.floor(finalBounds.width),
+			height: Math.floor(finalBounds.height)
+		});
+
 	}
 
 	setRepresentedFilename(filename: string): void {
