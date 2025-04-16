@@ -5,11 +5,10 @@
 
 import { BrowserWindow, session, ipcMain, type IpcMainEvent, app, Event, screen, dialog } from 'electron';
 import { FileAccess } from '../../vs/base/common/network.js';
-import { setOperNo, setSSOTokenState, getServerIP, getServerPort, setBaseURL } from './globalState.js';
 import path from 'path';
 import fs from 'fs';
 import log from 'electron-log';
-import { getUpdateInfo, openClient, closeClient } from '../appUpdate/updateUtils.js';
+// import { getUpdateInfo, openClient, closeClient } from '../appUpdate/updateUtils.js';
 
 import { createServer, closeServer } from '../server/http.js';
 import { runupdate, execExeFile } from '../appUpdate/appUpdate.js';
@@ -17,7 +16,6 @@ import { CodeApplication } from '../../vs/code/electron-main/app.js';
 import { boolean } from '../../vs/editor/common/config/editorOptions.js';
 import { StartData } from '../common/StartUpData.js'
 let desktopWindow: BrowserWindow | null = null;
-let updateWindow: BrowserWindow | null = null;
 let mCodeApp: CodeApplication | null = null;
 let isQuitting: boolean = false;
 let vscodeWindow: BrowserWindow;
@@ -118,7 +116,6 @@ export const createDesktopWindow = (codeApp: CodeApplication): void => {
 		desktopWindow.on('closed', () => {
 			desktopWindow = null;
 		});
-		openClient();
 	} catch (error) {
 		console.error('窗口初始化失败:', error instanceof Error ? error.message : String(error));
 	}
@@ -126,7 +123,6 @@ export const createDesktopWindow = (codeApp: CodeApplication): void => {
 
 	app.on('before-quit', async (event: Event) => {
 		if (!isQuitting) {
-			closeClient();
 			log.info(`before-quit isQuitting ${isQuitting}`);
 			event.preventDefault();
 			isQuitting = true;
@@ -140,37 +136,6 @@ export const createDesktopWindow = (codeApp: CodeApplication): void => {
 		execExeFile();
 	});
 };
-
-export const createUpdateWindow = (): void => {
-
-	updateWindow = new BrowserWindow({
-		width: 400,
-		height: 150,
-		fullscreen: false,
-		frame: false,
-		resizable: false,
-		movable: false,
-		parent: desktopWindow as BrowserWindow,
-		webPreferences: {
-			preload: FileAccess.asFileUri('frontend/preload/desktopWindow.js').fsPath,
-			nodeIntegration: false,
-			contextIsolation: true,
-			sandbox: true,
-			webSecurity: true
-		},
-	});
-	try {
-		updateWindow.loadURL(FileAccess.asBrowserUri(`frontend/windows/updateWindow/index.html`).toString(true));
-		// 添加窗口关闭处理
-		updateWindow.on('closed', () => {
-			updateWindow = null;
-		});
-	} catch (error) {
-		console.error('窗口初始化失败:', error instanceof Error ? error.message : String(error));
-	}
-};
-
-
 
 
 // 配置日志文件
@@ -264,8 +229,6 @@ try {
 	log.error('日志配置报错', err as Error);
 }
 const setupIPC = (): void => {
-	ipcMain.on('login' as keyof IPCChannels, handleLogin as any);
-	ipcMain.on('update-now' as keyof IPCChannels, handleUpdate as any);
 	ipcMain.on('open-vscode' as keyof IPCChannels, handleOpenVscode as any);
 	ipcMain.on('open-directory-dialog' as keyof IPCChannels, openDirectory as any);
 	ipcMain.on('opem-openFile-dialog' as keyof IPCChannels, openFile as any);
@@ -274,30 +237,6 @@ const setupIPC = (): void => {
 
 };
 
-
-//登录前端返回数据
-const handleLogin = async (
-	event: IpcMainEvent,
-	loginData: LoginData
-): Promise<void> => {
-	setOperNo(loginData?.operNo);
-	setSSOTokenState(loginData?.token);
-	log?.info('登录返回：' + loginData.operNo + '///' + loginData.token);
-	//请求更新
-	getUpdateInfo();
-};
-
-//立即重启更新
-const handleUpdate = async (
-	event: IpcMainEvent,
-	data: StartData
-): Promise<void> => {
-	log.info('========立即重启更新');
-	// runupdate();
-
-	await mCodeApp?.startup(true, data);
-
-};
 //立即启动
 const handleOpenVscode = async (
 	event: IpcMainEvent,
